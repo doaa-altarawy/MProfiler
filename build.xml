@@ -1,0 +1,608 @@
+<?xml version="1.0"?>
+
+<!--
+
+  Ant build file for the entire biojava tree
+
+  see:
+  <a href="http://ant.apache.org/">Ant Project Homepage</a>
+
+  targets:
+
+    compile
+    compile-demos     compiles the demo files
+    compile-apps      compiles the application files
+    package-bioinfo   builds the bioinfo.jar file (default)
+    package-demos     builds the demos.jar file
+    package-apps      builds the jar.apps file
+    sign              signs the bioinfo.jar with jarsigner
+    javadocs-bioinfo  builds bioinfo API documentation
+    javadocs-demos    builds demos API documentation
+    javadocs-all      builds API documentation for all the above
+    clean             cleans up the build & dist directories
+    dist              builds a full BioJava distributions
+    dist-src          builds a BioJava source distributions
+
+ 
+  author:  Doaa Altarawy.
+           
+  portions Copyright (c) 1999-2000 The Apache Software Foundation.
+
+-->
+
+<project name="bioinfo" default="package-bioinfo" basedir=".">
+   
+	<!-- Checks environment and setup variables -->
+	<target name="init" description="Checks environment and setup variables">
+		<tstamp />
+		<property name="version"        value="live" />
+		<property name="build.compiler" value="javac1.5" />
+		<property name="classpath"      value="lib/biojava.jar:bytecode.jar:commons-cli.jar:commons-collections-2.1.jar:commons-dbcp-1.1.jar:commons-pool-1.1.jar:hsqldb.jar:jgrapht-jdk1.5.jar:junit-4.4.jar" />
+		<property name="ant-tasks.path" value="ant-lib/sablecc.jar:ant-lib/anttask.jar" />
+
+
+		<!-- Check the current system classpath for JUnit -->
+		<available classpath="${classpath}"
+               classname="junit.framework.TestCase"
+               property="junit.present" />
+
+		<!-- Check for XSLT OutputProperty support in Ant (only in Ant >= 1.5) -->
+		<available classpath="${java.class.path}"
+               classname="org.apache.tools.ant.taskdefs.XSLTProcess$OutputProperty"
+               property="outputproperty.support" />
+
+		<!-- Check for JUnit support in Ant (only in >= 1.3) -->
+		<available classpath="${java.class.path}"
+               classname="org.apache.tools.ant.taskdefs.optional.junit.JUnitTest"
+               property="junit.support" />
+
+		<!-- Check for Java 1.4 -->
+		<available classpath="${java.class.path}"
+               classname="java.nio.Buffer"
+               property="java14">
+		</available>
+
+		<available classpath="${classpath}"
+               classname="org.hsqldb.jdbcDriver"
+               property="sqlDriver.hsqldb">
+		</available>
+
+		<!-- Echo information -->
+		<echo message="Building bioinfo-${version}" />
+		<echo message="Java Home:                       ${java.home}"/>
+		<echo message="JUnit present:                   ${junit.present}" />
+		<echo message="JUnit supported by Ant:          ${junit.support}" />
+		<echo message="HSQLDB driver present:           ${sqlDriver.hsqldb}" />
+		<echo message="XSLT support:                    ${outputproperty.support}"/>
+
+		<property name="readme"        value="./README" />
+		<property name="license"       value="./LICENSE" />
+		<property name="src.dir"       value="./src" />
+		<property name="demos.dir"     value="./demos" />
+		<property name="apps.dir"      value="./apps" />
+		<property name="docs.dir"      value="./docs" />
+		<property name="doc.css.file"  value="bioinfo-doc.css" />
+		<property name="reports.dir"   value="./reports" />
+		<property name="manifest.dir"  value="./manifest" />
+		<property name="resources.dir" value="./resources" />
+		<property name="signature.dir" value="./selfSignedCertificate" />
+
+		<!-- Main build directory -->
+		<property name="build.dir"         value="./ant-build" />
+		<property name="build.classes.dir" value="${build.dir}/classes" />
+
+		<!-- Javac properties -->
+		<property name="javac.depend"      value="false" />
+		<property name="javac.debug"       value="true" />
+		<property name="javac.deprecation" value="false" />
+		<property name="javac.source"      value="1.5" />
+		<property name="javac.target"      value="1.5" />
+
+		<!-- Javadoc properties -->
+		<property name="build.dest.docs"     value="${build.dir}/docs" />
+		<property name="build.dest.doccheck" value="${build.dir}/docs/check" />
+		<property name="packages"            value="org.*" />
+
+		<!-- Subdirectories for main source and classes -->
+		<property name="name.bioinfo"           value="bioinfo" />
+		<property name="Name.bioinfo"           value="BioJava" />
+		<property name="build.dest.bioinfo"     value="${build.classes.dir}/${name.bioinfo}" />
+		<property name="build.docs.bioinfo"     value="${build.dest.docs}/${name.bioinfo}" />
+		<property name="build.doccheck.bioinfo" value="${build.dest.doccheck}/${name.bioinfo}" />
+		<property name="jar.bioinfo"            value="${build.dir}/${name.bioinfo}.jar" />
+		<property name="manifest.file.bioinfo"  value="${manifest.dir}/${name.bioinfo}.txt" />
+
+		
+		<!-- Subdirectories for demos source and classes -->
+		<property name="name.demos"          value="demos" />
+		<property name="Name.demos"          value="BioJava Demos" />
+		<property name="build.dest.demos"    value="${build.classes.dir}/${name.demos}" />
+		<property name="build.docs.demos"    value="${build.dest.docs}/${name.demos}" />
+		<property name="jar.demos"           value="${build.dir}/${name.demos}.jar" />
+		<property name="manifest.file.demos" value="${manifest.dir}/${name.demos}.txt" />
+
+				
+		<!-- Subdirectory for creating a distribution -->
+		<property name="dist.root"          value="./dist" />
+		<property name="dist.dir"           value="${dist.root}/${name.bioinfo}-${version}" />
+
+	</target>
+
+
+	<!--
+    Prepare each part of the project.
+
+    Each preparation creates working directories and copies files over.
+  -->
+
+	<!-- Prepares the basic stuff -->
+	<target name="prepare" depends="init" description="creates basic directories">
+		<!-- Creates directories -->
+		<mkdir dir="${build.dir}" />
+
+		<!-- Copies jars -->
+		<copy todir="${build.dir}">
+			<fileset dir=".">
+				<include name="*.jar" />
+			</fileset>
+		</copy>
+
+	</target>
+
+	
+
+	<!-- Prepares the bioinfo source code -->
+	<target name="prepare-bioinfo" depends="prepare"
+  description="Prepares bioinfo source files">
+		<!-- Creates directories -->
+		<mkdir dir="${build.dest.bioinfo}" />
+		<mkdir dir="${build.docs.bioinfo}" />
+		<mkdir dir="${build.doccheck.bioinfo}" />
+	</target>
+
+	
+	<!-- Prepares the demos code -->
+	<target name="prepare-demos" depends="prepare"
+  description="Prepares the demos code">
+
+		<!-- Creates directories -->
+		<mkdir dir="${build.dest.demos}" />
+		<mkdir dir="${build.docs.demos}" />
+	</target>
+
+	<!-- Prepares the apps code -->
+	<target name="prepare-apps" depends="prepare"
+  description="Prepares the apps code">
+
+		<!-- Creates directories -->
+		<mkdir dir="${build.dest.apps}" />
+		<mkdir dir="${build.docs.apps}" />
+	</target>
+
+	<!-- Prepares the javadocs -->
+	<target name="prepare-javadocs" depends="prepare" description="Prepares the javadocs">
+
+		<!-- Creates directories -->
+		<mkdir dir="${build.dest.docs}" />
+	</target>
+
+
+
+	<!--
+    Compile each part of the project.
+
+    This runs javac or any other tasks necisary to turn the source code into
+    .class files.
+  -->
+
+	<!-- Compiles the source directory -->
+	<target name="compile-bioinfo" depends="prepare-bioinfo"
+  description="Compiles the source directory">
+		<javac
+      encoding="ISO-8859-1"
+      srcdir="${src.dir}"
+      destdir="${build.dest.bioinfo}"
+      depend="${javac.depend}"
+      deprecation="${javac.deprecation}"
+      source="${javac.source}"
+      target="${javac.target}"
+      debug="${javac.debug}">
+			<classpath>
+				<pathelement path="${classpath}" />
+			</classpath>
+		</javac>
+	</target>
+
+	
+	<!-- Compiles the demos directory -->
+	<target name="compile-demos" depends="prepare-demos,package-bioinfo"
+  description="Compiles the demos directory">
+		<javac
+      encoding="ISO-8859-1"
+      srcdir="${demos.dir}"
+      destdir="${build.dest.demos}"
+      depend="${javac.depend}"
+      deprecation="${javac.deprecation}"
+      source="${javac.source}"
+      target="${javac.target}"
+      debug="${javac.debug}">
+			<classpath>
+				<pathelement path="${classpath}" />
+				<pathelement path="${jar.bioinfo}" />
+			</classpath>
+		</javac>
+	</target>
+
+	<!-- Compiles the apps directory -->
+	<target name="compile-apps" depends="prepare-apps,package-bioinfo"
+  description="Compiles the apps directory">
+		<javac
+      encoding="ISO-8859-1"
+      srcdir="${apps.dir}"
+      destdir="${build.dest.apps}"
+      depend="${javac.depend}"
+      deprecation="${javac.deprecation}"
+      source="${javac.source}"
+      target="${javac.target}"
+      debug="${javac.debug}">
+			<classpath>
+				<pathelement path="${classpath}" />
+				<pathelement path="${jar.bioinfo}" />
+			</classpath>
+		</javac>
+	</target>
+
+
+	<!--
+    Creates the .jar files containing each distributable component.
+
+    This probably just jars up the .class files and any resources as well as
+    a manifest for each distributable component.
+  -->
+
+
+	<target name="package-bioinfo" depends="compile-bioinfo"
+  description="create bioinfo class jar file">
+		<jar
+      jarfile="${jar.bioinfo}"
+      manifest="${manifest.dir}/bioinfo.txt"
+    >
+			<fileset dir="${build.dest.bioinfo}" />
+			<fileset dir="${resources.dir}" />
+		</jar>
+	</target>
+
+	<!-- Create the demo package -->
+	<target name="package-demos" depends="init,package-bioinfo,compile-demos"
+  description="create the demo jar file">
+		<jar
+      jarfile="${jar.demos}"
+      manifest="${manifest.dir}/demos.txt"
+    >
+			<fileset dir="${build.dest.demos}" />
+		</jar>
+	</target>
+
+	<!-- Create the apps package -->
+	<target name="package-apps" depends="init,package-bioinfo,compile-apps"
+  description="create the apps jar file">
+		<jar
+      jarfile="${jar.apps}"
+      manifest="${manifest.dir}/apps.txt"
+    >
+			<fileset dir="${build.dest.apps}" />
+		</jar>
+	</target>
+
+
+	<target
+    name="package-all"
+    depends="package-bioinfo,package-demos,package-apps"
+    description="create all the jar files" />
+
+	<!-- sign the bioinfo.jar file -->
+	<target
+    name="sign"
+    depends="package-bioinfo"
+    description="sign the bioinfo.jar file with jarsigner"
+    >
+
+		<copy file="${jar.bioinfo}" tofile="${build.dir}/bioinfoUnsigned.jar" />
+
+		<signjar jar="${build.dir}/bioinfoUnsigned.jar"
+             signedjar="${jar.bioinfo}"
+             keystore="${signature.dir}/selfSignedCertificate.store"
+             storepass="bioinfoCVS" 
+	     alias="bioinfoCVS" />
+
+		<!-- to verify that a .jar file is signed: jarsigner -verify bioinfo.jar -->
+
+		<delete file="${build.dir}/bioinfoUnsigned.jar"/>
+
+	</target>
+
+	<!--
+    Create Javadoc and other documentation for each distribution package.
+
+    This probably just calls javadoc, but may call other documentation gubbins.
+  -->
+
+	
+
+	<!-- Creates the API documentation -->
+	<target name="javadocs-bioinfo" depends="prepare-bioinfo"
+  description="Creates the API documentation">
+		<javadoc
+      encoding="ISO-8859-1"
+      packagenames="${packages}"
+      sourcepath="${src.dir}"
+      classpath="${classpath}"
+      destdir="${build.docs.bioinfo}"
+      author="true"
+      version="true"
+      use="true"
+      source="1.5"
+      windowtitle="${Name.bioinfo}-${version} API"
+      doctitle="${Name.bioinfo}-${version}"
+      maxmemory="96m">
+			<link href="http://java.sun.com/j2se/1.5.0/docs/api/" offline="false"/>
+
+			<group title="Core biological packages"
+              packages="org.bioinfo.bio:org.bioinfo.bio.dist:org.bioinfo.bio.search:org.bioinfo.bio.seq:org.bioinfo.bio.seq.db:org.bioinfo.bio.seq.genomic:org.bioinfo.bio.seq.io:org.bioinfo.bio.symbol:org.bioinfo.bio.alignment:org.bioinfo.directory:org.bioinfo.bibliography:org.bioinfo.bio.taxa:org.bioinfo.bio.seq.filter" />
+
+			<group title="User interface components"
+              packages="org.bioinfo.bio.gui:org.bioinfo.bio.gui.glyph:org.bioinfo.bio.gui.sequence:org.bioinfo.bio.gui.sequence.tracklayout" />
+
+			<group title="Sequence databases and formats"
+              packages="org.bioinfo.bio.seq.io.agave:org.bioinfo.bio.program.das:org.bioinfo.bio.seq.ragbag:org.bioinfo.bio.seq.db.emblcd:org.bioinfo.bio.program.xff:org.bioinfo.bio.seq.dist:org.bioinfo.bio.seq.io.game:org.bioinfo.bio.seq.io.game12:org.bioinfo.bio.seq.db.biofetch:org.bioinfo.bio.seq.db.flat:org.bioinfo.bio.seq.db.biosql:org.bioinfo.bio.program.indexdb:org.bioinfo.bio.program.das.dasalignment:org.bioinfo.bio.program.homologene" />
+
+			<group title="Handling output from external tools"
+              packages="org.bioinfo.bio.program:org.bioinfo.bio.program.gff:org.bioinfo.bio.program.gff3:org.bioinfo.bio.program.sax:org.bioinfo.bio.program.xml:org.bioinfo.bio.program.blast2html:org.bioinfo.bio.program.search:org.bioinfo.bio.program.ssbind:org.bioinfo.bio.program.phred:org.bioinfo.bio.program.hmmer:org.bioinfo.bio.program.sax.blastxml" />
+
+			<group title="Dynamic programming packages"
+              packages="org.bioinfo.bio.dp:org.bioinfo.bio.dp.onehead:org.bioinfo.bio.dp.twohead" />
+
+			<group title="Chromatogram and trace file support"
+              packages="org.bioinfo.bio.chromatogram:org.bioinfo.bio.program.abi:org.bioinfo.bio.program.scf:org.bioinfo.bio.chromatogram.graphic" />
+
+			<group title="Macromolecular structure (PDB)"
+              packages="org.bioinfo.bio.structure:org.bioinfo.bio.structure.io:org.bioinfo.bio.program.das.dasstructure:org.bioinfo.bio.structure.align:org.bioinfo.bio.structure.align.helper:org.bioinfo.bio.structure.align.pairwise:org.bioinfo.bio.structure.jama:org.bioinfo.bio.structure.gui:org.bioinfo.bio.structure.server" />
+
+			<group title="Utilities and developers' packages"
+              packages="org.bioinfo.utils.process:org.bioinfo.bio.seq.impl:org.bioinfo.bio.seq.projection:org.bioinfo.utils:org.bioinfo.utils.cache:org.bioinfo.utils.xml:org.bioinfo.utils.stax:org.bioinfo.utils.io:org.bioinfo.utils.math:org.bioinfo.utils.net:org.bioinfo.utils.candy:org.bioinfo.bio.seq.io.filterxml:org.bioinfo.bio.program.tagvalue:org.bioinfo.ontology:org.bioinfo.ontology.io:org.bioinfo.utils.automata:org.bioinfo.utils.regex:org.bioinfo.naming:org.bioinfo.utils.walker" />
+
+			<group title="Molecular biology packages"
+              packages = "org.bioinfo.bio.proteomics:org.bioinfo.bio.proteomics.aaindex:org.bioinfo.bio.molbio" />
+
+			<group title="Ontology packages"
+              packages = "org.bioinfo.bio.ontology:org.bioinfo.bio.ontology.io"/>
+
+			<group title="Experimental packages"
+              packages="org.bioinfo.stats.svm:org.bioinfo.stats.svm.tools:org.bioinfo.bio.seq.homol:org.bioinfo.utils.lsid:org.bioinfo.bio.program.unigene:org.bioinfo.bio.program.ssaha:org.bioinfo.bio.seq.distributed:org.bioinfo.bio.annodb:org.bioinfo.bio.program.formats" />
+
+			<group title="Bioinfo extension (bioinfox) packages"
+              packages="org.bioinfox:org.bioinfox.bio:org.bioinfox.bio.db:org.bioinfox.bio.db.biosql:org.bioinfox.bio.db.ncbi:org.bioinfox.bio.seq:org.bioinfox.bio.seq.io:org.bioinfox.bio.taxa:org.bioinfox.bio.taxa.io:org.bioinfox.ontology:org.bioinfox.utils" />
+
+			<group title="Genetic Algorithm Framework"
+              packages="org.bioinfox.ga:org.bioinfox.ga.exception:org.bioinfox.ga.functions:org.bioinfox.ga.impl:org.bioinfox.ga.util" />
+			<group title="Experimental Phylogeny packages"
+              packages="org.bioinfox.bio.phylo:org.bioinfox.bio.phylo.io:org.bioinfox.bio.phylo.io.nexus:org.bioinfox.bio.phylo.io.phylip:org.bioinfox.bio.phylo.tree" />
+
+			
+		</javadoc>
+	</target>
+
+	<!-- Create demos API documentation -->
+	<target name="javadocs-demos" depends="prepare-demos,compile-bioinfo"
+  description="Create the demos API documentation">
+		<javadoc
+      encoding="ISO-8859-1"
+      packagenames="**"
+      sourcepath="${demos.dir}"
+      classpath="${classpath}:${build.dest.bioinfo}"
+      destdir="${build.docs.demos}"
+      author="true"
+      version="true"
+      use="true"
+      source="1.5"
+      windowtitle="${Name.demos} API"
+      doctitle="${Name.demos}"
+      maxmemory="96m">
+			<link href="http://java.sun.com/j2se/1.5.0/docs/api/" offline="false"/>
+			<link href="../bioinfo" offline="true" packagelistLoc="${build.docs.bioinfo}/package-list}"/>
+		</javadoc>
+	</target>
+
+	<!-- Create apps API documentation -->
+	<target name="javadocs-apps" depends="prepare-apps,compile-bioinfo"
+  description="Create the apps API documentation">
+		<javadoc
+      encoding="ISO-8859-1"
+      packagenames="org.*"
+      sourcepath="${apps.dir}"
+      classpath="${classpath}:${build.dest.bioinfo}"
+      destdir="${build.docs.apps}"
+      author="true"
+      version="true"
+      use="true"
+      source="1.5"
+      windowtitle="${Name.apps} API"
+      doctitle="${Name.apps}"
+      maxmemory="96m">
+			<link href="http://java.sun.com/j2se/1.5.0/docs/api/" offline="false"/>
+			<link href="../bioinfo" offline="true" packagelistLoc="${build.docs.bioinfo}/package-list}"/>
+			
+		</javadoc>
+	</target>
+
+
+
+	<target
+    name="javadocs-all"
+    depends="javadocs-bioinfo,javadocs-demos,javadocs-apps"
+    description="Creates the javadocs for all components"
+  />
+
+
+	<target name="doccheck-bioinfo" depends="prepare-bioinfo"
+    description="Checks the API documentation">
+		<javadoc
+      encoding="ISO-8859-1"
+      doclet="com.sun.tools.doclets.doccheck.DocCheck"
+      docletpath="doccheck.jar"
+      packagenames="${packages}"
+      sourcepath="${src.dir}"
+      classpath="${classpath}"
+      destdir="${build.doccheck.bioinfo}"
+      source="1.5"
+      maxmemory="96m">
+		</javadoc>
+	</target>
+
+	<!-- Cleans everything -->
+	<target name="clean" 
+  	  depends="init"
+  	  description="Cleans everything">
+		<delete dir="${build.dir}" />		
+	</target>
+
+	<!-- Cleans the dist directory -->
+	<target name="clean-dist" depends="init" description="Cleans the dist root directory">
+		<delete dir="${dist.root}" />
+	</target>
+
+
+	<!-- This task is mainly for BioJava admins to build a distribution, not needed for normal use -->
+	<target name="dist" depends="clean-dist, init, javadocs-all, package-all" description="copy all the files for a distribution">
+		<mkdir dir="${dist.root}"/>
+		<mkdir dir="${dist.dir}"/>
+
+		<!-- copy the bioinfo-jar -->
+		<copy file="${jar.bioinfo}" tofile="${dist.dir}/${name.bioinfo}-${version}.jar"/>
+
+		<!-- copy the apps-jar -->
+		<copy file="${jar.apps}" tofile="${dist.dir}/apps-${version}.jar"/>
+
+		<!-- copy the demos.jar -->
+		<copy file="${jar.demos}" tofile="${dist.dir}/demos-${version}.jar"/>
+
+		<!-- copy the other jars -->
+		<copy todir="${dist.dir}">
+			<fileset dir=".">
+				<include name="*.jar" />
+			</fileset>
+		</copy>
+
+		<!-- copy the docs -->
+		<copy todir="${dist.dir}/doc">
+			<fileset dir="${build.dest.docs}"/>
+		</copy>
+
+		<!-- copy bioinfo src -->
+		<copy todir="${dist.dir}/src">
+			<fileset dir="${src.dir}"/>
+		</copy>
+
+		<!-- copy READMEs -->
+		<copy tofile="${dist.dir}/README" file="./README"/>
+		<copy tofile="${dist.dir}/README.biosql" file="./README.biosql"/>
+
+		<!-- copy demo src -->
+		<copy todir="${dist.dir}/demos">
+			<fileset dir="${demos.dir}"/>
+		</copy>
+
+		<!-- copy apps src -->
+		<copy todir="${dist.dir}/apps">
+			<fileset dir="${apps.dir}"/>
+		</copy>
+
+		<!-- copy licenses -->
+		<copy tofile="${dist.dir}/LICENSE" file="./LICENSE"/>
+
+		<!-- why do this need this license? isn't all of BioJava LGPL? -->
+		<copy tofile="${dist.dir}/LICENSE.COMMONS" file="./LICENSE.COMMONS"/>
+
+		<!-- copy manifest -->
+		<copy todir="${dist.dir}/manifest">
+			<fileset dir="${manifest.dir}"/>
+		</copy>
+
+		<!-- copy dtd -->
+		<copy todir="${dist.dir}/dtd">
+			<fileset dir="./dtd"/>
+		</copy>
+
+		<!-- copy resources -->
+		<copy todir="${dist.dir}/resources">
+			<fileset dir="${resources.dir}"/>
+		</copy>
+
+		<!-- copy this build file -->
+		<copy file="${ant.file}" tofile="${dist.dir}/build.xml"/>
+
+	</target>
+
+	<target name="dist-src" depends="clean-dist, init, prepare"
+  	        description="create a jar file of the bioinfo source">
+
+		<mkdir dir="${dist.root}"/>
+		<mkdir dir="${dist.dir}"/>
+
+		<!-- copy bioinfo src -->
+		<copy todir="${dist.dir}/src">
+			<fileset dir="${src.dir}"/>
+		</copy>
+
+		<!-- copy resources -->
+		<copy todir="${dist.dir}/resources">
+			<fileset dir="${resources.dir}"/>
+		</copy>
+
+		<!-- copy this build file -->
+		<copy file="${ant.file}" tofile="${dist.dir}/build.xml"/>
+
+		<!-- copy licenses -->
+		<copy tofile="${dist.dir}/LICENSE" file="./LICENSE"/>		
+
+		<!-- copy manifest -->
+		<copy todir="${dist.dir}/manifest">
+			<fileset dir="${manifest.dir}"/>
+		</copy>
+
+
+		<!-- copy READMEs -->
+		<copy tofile="${dist.dir}/README" file="./README"/>
+		<copy tofile="${dist.dir}/README.biosql" file="./README.biosql"/>
+
+		
+		<!-- copy the docs -->
+		<copy todir="${dist.dir}/doc">
+			<fileset dir="${build.dest.docs}"/>
+		</copy>
+		
+		<!-- jarsign -->
+		<copy todir="${dist.dir}/selfSignedCertificate">
+			<fileset dir="${signature.dir}"/>
+		</copy>
+
+
+		<!-- copy the jar files -->
+		<copy todir="${dist.dir}">
+			<fileset dir=".">
+				<include name="*.jar" />
+			</fileset>
+		</copy>
+
+
+		<jar
+	      jarfile="${build.dir}/bioinfo-src.jar"
+    	  manifest="${manifest.dir}/bioinfo.txt">
+			
+			<fileset dir="${dist.dir}" />
+
+		</jar>
+
+	</target>
+
+</project>
