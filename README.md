@@ -1,4 +1,4 @@
-An ensemble method for DNA motif prediction and visualization.
+MProfiler is an ensemble method for DNA motif prediction and visualization.
 
 Main GUI class (SWT visualization): org.biojava.bio.view.MotifAnalyzer.java
 
@@ -14,7 +14,7 @@ Requirements: SWT
 
 ##Citation: 
 
-Altarawy, Doaa, Mohamed A. Ismail, and Sahar M. Ghanem. "MProfiler: A profile-based method for dna motif discovery." IAPR International Conference on Pattern Recognition in Bioinformatics. Springer Berlin Heidelberg, 2009. APA
+Altarawy, Doaa, Mohamed A. Ismail, and Sahar M. Ghanem. "MProfiler: A profile-based method for dna motif discovery." IAPR International Conference on Pattern Recognition in Bioinformatics. Springer Berlin Heidelberg, 2009.
 
 
 ##Bibtex: 
